@@ -34,6 +34,9 @@
   .quickbtn:active{ transform: scale(.97); }
   ::-webkit-scrollbar{ width:8px; height:8px; }
   ::-webkit-scrollbar-thumb{ background:#d7dae8; border-radius:8px; }
+  .acct-card{ background:#fff; border:1px solid var(--line); border-radius:16px; }
+  .acct-btn{ font-size:11px; font-weight:700; padding:6px 8px; border-radius:10px; transition:.15s; white-space:nowrap; }
+  .acct-btn:active{ transform: scale(.96); }
 </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -53,10 +56,10 @@
     <div id="authGroup" class="flex flex-wrap items-center gap-2"></div>
   </header>
 
-  <!-- lưu ý dữ liệu cục bộ -->
+  <!-- Lưu ý dữ liệu cục bộ -->
   <div class="panel p-3 px-4 text-xs md:text-sm text-gray-500 flex items-center gap-2">
     <span>ℹ️</span>
-    <span>Dữ liệu được lưu <b>trên trình duyệt của thiết bị này</b>. Nếu mở trang trên thiết bị khác, sổ điểm sẽ không tự đồng bộ — xem thêm ở cuối trang.</span>
+    <span>Dữ liệu được lưu trực tiếp trên trang web. Quản trị viên có thể cập nhật điểm và quản lý danh sách tài khoản dễ dàng.</span>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -151,6 +154,16 @@
     </div>
   </div>
 
+  <!-- Quản lý tài khoản quản trị -->
+  <div id="acctManagerPanel" class="panel p-6 admin-only hidden">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold flex items-center gap-2">🛡️ Quản lý tài khoản quản trị</h2>
+      <span class="text-xs font-semibold text-gray-400" id="acctCountLabel"></span>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">Trang web hỗ trợ tối đa <b>3</b> tài khoản quản trị. Mỗi tài khoản có thể xem hoạt động, đổi mật khẩu, khóa/mở khóa hoặc xóa.</p>
+    <div id="acctListWrap" class="space-y-3"></div>
+  </div>
+
   <!-- Lịch sử -->
   <div class="panel p-6">
     <h2 class="text-lg font-bold border-b border-gray-100 pb-3 mb-4">📋 Nhật ký hoạt động</h2>
@@ -171,15 +184,6 @@
     </div>
   </div>
 
-  <!-- Ghi chú kỹ thuật -->
-  <div class="panel p-5 text-xs text-gray-500 leading-relaxed">
-    <b class="text-gray-600">Về việc "2 thiết bị":</b> trang này không có máy chủ, nên mỗi trình duyệt/thiết bị giữ
-    một bản dữ liệu riêng trong bộ nhớ cục bộ (localStorage). Hệ thống hiện giới hạn tối đa
-    <b>2 tài khoản quản trị được đăng ký</b> trên thiết bị này — phù hợp nếu cả lớp chỉ dùng chung 1–2 thiết bị
-    (máy của lớp trưởng/giáo viên) để chấm điểm. Nếu cần 2 người ở 2 thiết bị khác nhau cùng chỉnh sửa và
-    thấy y hệt một bảng điểm, sẽ cần thêm một máy chủ/cơ sở dữ liệu dùng chung — có thể bổ sung sau nếu bạn cần.
-  </div>
-
   <footer class="pt-2 pb-4 text-center text-sm font-medium text-gray-500">
     Hệ Thống Quản Lý Thi Đua • <span class="font-extrabold text-indigo-600">Credit: RODEL HAO | CLASS : 12/2</span>
   </footer>
@@ -195,18 +199,33 @@ const TEAM_META = {
 };
 const DEFAULT_TEAMS = Object.keys(TEAM_META);
 const INITIAL_SCORE = 100;
-const MAX_ADMIN_ACCOUNTS = 2;
+const MAX_ADMIN_ACCOUNTS = 3;
 
 let logs = JSON.parse(localStorage.getItem('thidua_logs_v4')) || [];
 
-// Danh sách tài khoản quản trị (tối đa 2), giữ tài khoản mặc định admin/123 để không bị khoá lần đầu
+// Danh sách tài khoản quản trị (tối đa 3), giữ tài khoản mặc định admin/123
 let adminAccounts = JSON.parse(localStorage.getItem('thidua_admin_accounts_v1'));
 if (!adminAccounts) {
-  adminAccounts = [{ username: 'admin', pass: '123' }];
+  adminAccounts = [{ username: 'admin', pass: '123', locked: false }];
   localStorage.setItem('thidua_admin_accounts_v1', JSON.stringify(adminAccounts));
 }
 
+let acctMigrated = false;
+adminAccounts.forEach(a => { if (typeof a.locked === 'undefined') { a.locked = false; acctMigrated = true; } });
+if (acctMigrated) localStorage.setItem('thidua_admin_accounts_v1', JSON.stringify(adminAccounts));
+
 let currentUser = JSON.parse(sessionStorage.getItem('thidua_current_user')) || null;
+if (currentUser) {
+  const stillValid = adminAccounts.find(a => a.username === currentUser.username && !a.locked);
+  if (!stillValid) {
+    currentUser = null;
+    sessionStorage.removeItem('thidua_current_user');
+  }
+}
+
+function saveAccounts() {
+  localStorage.setItem('thidua_admin_accounts_v1', JSON.stringify(adminAccounts));
+}
 
 /* ================= GIAO DIỆN ĐĂNG NHẬP ================= */
 function checkAuthUI() {
@@ -221,6 +240,9 @@ function checkAuthUI() {
       <span class="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-200">
         👑 ${currentUser.username}
       </span>
+      <button onclick="renderAccountManager()" class="bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition shadow-sm">
+        🛡️ Quản lý tài khoản
+      </button>
       <button onclick="handleLogout()" class="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition shadow-sm">
         🔓 Đăng xuất
       </button>
@@ -228,6 +250,7 @@ function checkAuthUI() {
         ⚠️ Đặt lại dữ liệu
       </button>
     `;
+    renderAccountManager();
   } else {
     adminElements.forEach(el => el.classList.add('hidden'));
     guestMessage.classList.remove('hidden');
@@ -240,6 +263,7 @@ function checkAuthUI() {
         🆕 Tạo tài khoản
       </button>
     `;
+    document.getElementById('acctManagerPanel').classList.add('hidden');
   }
   renderLogs();
 }
@@ -264,14 +288,18 @@ async function handleLogin() {
 
   const [username, password] = formValues;
   const found = adminAccounts.find(a => a.username === username && a.pass === password);
-  if (found) {
-    currentUser = { username: found.username };
-    sessionStorage.setItem('thidua_current_user', JSON.stringify(currentUser));
-    checkAuthUI();
-    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đăng nhập thành công!', showConfirmButton: false, timer: 1500 });
-  } else {
+  if (!found) {
     Swal.fire({ icon: 'error', title: 'Thất bại!', text: 'Sai tên tài khoản hoặc mật khẩu.' });
+    return;
   }
+  if (found.locked) {
+    Swal.fire({ icon: 'error', title: 'Tài khoản đã bị khóa', text: 'Vui lòng liên hệ quản trị viên khác để được mở khóa.' });
+    return;
+  }
+  currentUser = { username: found.username };
+  sessionStorage.setItem('thidua_current_user', JSON.stringify(currentUser));
+  checkAuthUI();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đăng nhập thành công!', showConfirmButton: false, timer: 1500 });
 }
 
 async function handleRegister() {
@@ -279,7 +307,7 @@ async function handleRegister() {
     Swal.fire({
       icon: 'warning',
       title: 'Đã đủ tài khoản',
-      text: `Thiết bị này đã có tối đa ${MAX_ADMIN_ACCOUNTS} tài khoản quản trị. Hãy đăng nhập bằng một tài khoản đã có, hoặc nhờ quản trị viên xoá bớt tài khoản cũ.`
+      text: `Trang web đã có tối đa ${MAX_ADMIN_ACCOUNTS} tài khoản quản trị. Hãy đăng nhập bằng tài khoản đã có hoặc nhờ quản trị viên xóa bớt tài khoản cũ.`
     });
     return;
   }
@@ -287,7 +315,7 @@ async function handleRegister() {
   const { value: formValues } = await Swal.fire({
     title: 'Tạo tài khoản quản trị',
     html:
-      `<p class="text-xs text-gray-500 mb-3">Còn lại ${MAX_ADMIN_ACCOUNTS - adminAccounts.length}/${MAX_ADMIN_ACCOUNTS} suất tài khoản trên thiết bị này.</p>` +
+      `<p class="text-xs text-gray-500 mb-3">Còn lại ${MAX_ADMIN_ACCOUNTS - adminAccounts.length}/${MAX_ADMIN_ACCOUNTS} suất tài khoản trên trang web.</p>` +
       '<input id="swal-new-user" class="swal2-input" placeholder="Tên tài khoản mới">' +
       '<input id="swal-new-pass" type="password" class="swal2-input" placeholder="Mật khẩu (tối thiểu 4 ký tự)">',
     focusConfirm: false,
@@ -309,9 +337,10 @@ async function handleRegister() {
   if (!formValues) return;
 
   const [username, pass] = formValues;
-  adminAccounts.push({ username, pass });
-  localStorage.setItem('thidua_admin_accounts_v1', JSON.stringify(adminAccounts));
+  adminAccounts.push({ username, pass, locked: false });
+  saveAccounts();
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã tạo tài khoản! Bạn có thể đăng nhập ngay.', showConfirmButton: false, timer: 2000 });
+  renderAccountManager();
 }
 
 function handleLogout() {
@@ -319,6 +348,154 @@ function handleLogout() {
   sessionStorage.removeItem('thidua_current_user');
   checkAuthUI();
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã đăng xuất', showConfirmButton: false, timer: 1200 });
+}
+
+/* ================= QUẢN LÝ TÀI KHOẢN QUẢN TRỊ ================= */
+function renderAccountManager() {
+  const panel = document.getElementById('acctManagerPanel');
+  if (!currentUser) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+
+  document.getElementById('acctCountLabel').textContent = `${adminAccounts.length}/${MAX_ADMIN_ACCOUNTS} tài khoản`;
+
+  document.getElementById('acctListWrap').innerHTML = adminAccounts.map(acc => {
+    const isSelf = currentUser && currentUser.username === acc.username;
+    const lockLabel = acc.locked ? '🔓 Mở khóa' : '🔒 Khóa';
+    const lockClasses = acc.locked
+      ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-600 hover:text-white'
+      : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-600 hover:text-white';
+    return `
+      <div class="acct-card p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="font-black text-sm flex items-center gap-2">
+            👤 ${acc.username}
+            ${isSelf ? '<span class="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Bạn</span>' : ''}
+            ${acc.locked ? '<span class="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-md">Đã khóa</span>' : ''}
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="acct-btn bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white" onclick="viewAccountActivity('${acc.username}')">📊 Hoạt động</button>
+          <button class="acct-btn bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-600 hover:text-white" onclick="changeAccountPassword('${acc.username}')">🔑 Đổi mật khẩu</button>
+          <button class="acct-btn ${lockClasses}" onclick="toggleAccountLock('${acc.username}')">${lockLabel}</button>
+          <button class="acct-btn bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white" onclick="deleteAccount('${acc.username}')">🗑️ Xóa</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function viewAccountActivity(username) {
+  const related = logs.filter(l => l.by === username);
+  let bodyHtml;
+  if (related.length === 0) {
+    bodyHtml = '<p class="text-sm text-gray-400 italic py-4">Chưa có hoạt động nào được ghi nhận bởi tài khoản này.</p>';
+  } else {
+    const rows = [...related].reverse().slice(0, 30).map(l => {
+      const sign = l.type === 'minus' ? '-' : '+';
+      const color = l.type === 'minus' ? '#e11d48' : '#0d9268';
+      return `<div class="flex justify-between items-center text-xs border-b border-gray-100 py-2 text-left">
+        <span class="text-gray-500">${l.dateStr || 'N/A'}</span>
+        <span class="font-semibold">${l.team}</span>
+        <span class="text-gray-600 truncate max-w-[140px]">${l.reason}</span>
+        <span style="color:${color};" class="font-bold">${sign}${l.points}</span>
+      </div>`;
+    }).join('');
+    bodyHtml = `<div class="max-h-72 overflow-y-auto pr-1">${rows}</div>
+      <p class="text-[11px] text-gray-400 mt-2">Tổng cộng ${related.length} lượt ghi nhận (hiển thị tối đa 30 gần nhất).</p>`;
+  }
+  Swal.fire({
+    title: `Hoạt động của "${username}"`,
+    html: bodyHtml,
+    confirmButtonText: 'Đóng',
+    confirmButtonColor: '#4f46e5',
+    width: 480
+  });
+}
+
+async function changeAccountPassword(username) {
+  const acc = adminAccounts.find(a => a.username === username);
+  if (!acc) return;
+  const { value: formValues } = await Swal.fire({
+    title: `Đổi mật khẩu: ${username}`,
+    html:
+      '<input id="swal-cp-new" type="password" class="swal2-input" placeholder="Mật khẩu mới (tối thiểu 4 ký tự)">' +
+      '<input id="swal-cp-confirm" type="password" class="swal2-input" placeholder="Nhập lại mật khẩu mới">',
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Cập nhật',
+    confirmButtonColor: '#4f46e5',
+    cancelButtonText: 'Hủy',
+    preConfirm: () => {
+      const p1 = document.getElementById('swal-cp-new').value.trim();
+      const p2 = document.getElementById('swal-cp-confirm').value.trim();
+      if (p1.length < 4) { Swal.showValidationMessage('Mật khẩu cần tối thiểu 4 ký tự'); return false; }
+      if (p1 !== p2) { Swal.showValidationMessage('Mật khẩu nhập lại không khớp'); return false; }
+      return p1;
+    }
+  });
+  if (!formValues) return;
+  acc.pass = formValues;
+  saveAccounts();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã đổi mật khẩu!', showConfirmButton: false, timer: 1500 });
+}
+
+function toggleAccountLock(username) {
+  const acc = adminAccounts.find(a => a.username === username);
+  if (!acc) return;
+
+  const activeUnlockedCount = adminAccounts.filter(a => !a.locked).length;
+  if (!acc.locked && activeUnlockedCount <= 1) {
+    Swal.fire({ icon: 'warning', title: 'Không thể khóa', text: 'Phải còn ít nhất một tài khoản quản trị đang hoạt động.' });
+    return;
+  }
+
+  const willLock = !acc.locked;
+  Swal.fire({
+    title: willLock ? `Khóa tài khoản "${username}"?` : `Mở khóa tài khoản "${username}"?`,
+    text: willLock ? 'Tài khoản này sẽ không thể đăng nhập cho đến khi được mở khóa.' : 'Tài khoản này sẽ có thể đăng nhập trở lại.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: willLock ? '#d97706' : '#0d9268',
+    cancelButtonText: 'Hủy',
+    confirmButtonText: willLock ? 'Khóa' : 'Mở khóa'
+  }).then(result => {
+    if (!result.isConfirmed) return;
+    acc.locked = willLock;
+    saveAccounts();
+    if (willLock && currentUser && currentUser.username === username) {
+      handleLogout();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Bạn đã tự khóa và đăng xuất tài khoản.', showConfirmButton: false, timer: 2000 });
+      return;
+    }
+    renderAccountManager();
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: willLock ? 'Đã khóa tài khoản' : 'Đã mở khóa tài khoản', showConfirmButton: false, timer: 1500 });
+  });
+}
+
+function deleteAccount(username) {
+  if (adminAccounts.length <= 1) {
+    Swal.fire({ icon: 'warning', title: 'Không thể xóa', text: 'Phải còn ít nhất một tài khoản quản trị trên trang web này.' });
+    return;
+  }
+  Swal.fire({
+    title: `Xóa tài khoản "${username}"?`,
+    text: 'Không thể hoàn tác sau khi xóa. Nhật ký do tài khoản này ghi nhận sẽ vẫn được giữ lại.',
+    icon: 'error',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonText: 'Hủy',
+    confirmButtonText: 'Xóa'
+  }).then(result => {
+    if (!result.isConfirmed) return;
+    adminAccounts = adminAccounts.filter(a => a.username !== username);
+    saveAccounts();
+    if (currentUser && currentUser.username === username) {
+      handleLogout();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Tài khoản của bạn đã bị xóa, đã đăng xuất.', showConfirmButton: false, timer: 2000 });
+      return;
+    }
+    renderAccountManager();
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa tài khoản!', showConfirmButton: false, timer: 1500 });
+  });
 }
 
 /* ================= GIỚI HẠN ĐIỂM TRỪ ================= */
@@ -364,7 +541,7 @@ function addRecord(e) {
   if (!Number.isInteger(week) || week < 1) { Swal.fire({ icon: 'error', title: 'Tuần không hợp lệ', text: 'Tuần phải là số nguyên dương.' }); return; }
 
   const dateStr = new Date().toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
-  logs.push({ id: Date.now(), type, team, week, category, reason, points, dateStr });
+  logs.push({ id: Date.now(), type, team, week, category, reason, points, dateStr, by: currentUser ? currentUser.username : 'N/A' });
   saveAndRender();
 
   document.getElementById('reasonInput').value = '';
