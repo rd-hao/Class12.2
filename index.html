@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bảng Vàng Thi Đua - Lớp 12/2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1e2233;
+    --paper:#f5f6fb;
+    --line:#e4e6f2;
+    --t1:#4f46e5; --t1-bg:#eef0fd;
+    --t2:#0d9268; --t2-bg:#e6f7f1;
+    --t3:#d97706; --t3-bg:#fdf3e3;
+    --t4:#e11d48; --t4-bg:#fdecef;
+  }
+  * { font-family: 'Be Vietnam Pro', sans-serif; }
+  body{ background:
+    radial-gradient(1200px 500px at 100% -10%, #eef0fd 0%, transparent 60%),
+    radial-gradient(1000px 500px at -10% 110%, #e6f7f1 0%, transparent 55%),
+    var(--paper);
+    color: var(--ink);
+  }
+  .fade-in{ animation: fadeIn .35s ease-out; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+  .panel{ background:#fff; border:1px solid var(--line); border-radius:20px; box-shadow: 0 1px 2px rgba(30,34,51,.04), 0 8px 24px -12px rgba(30,34,51,.10); }
+  .score-pop{ animation: pop .4s ease; }
+  @keyframes pop{ 0%{transform:scale(1);} 30%{transform:scale(1.12);} 100%{transform:scale(1);} }
+  .team-row{ border-left:6px solid var(--row-color, #cbd0e6); }
+  .quickbtn:active{ transform: scale(.97); }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#d7dae8; border-radius:8px; }
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+<div class="max-w-6xl mx-auto space-y-6 fade-in">
+
+  <!-- Header -->
+  <header class="panel p-5 md:p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl text-white font-black"
+           style="background:linear-gradient(135deg,var(--t1),#7c73f2);">🏆</div>
+      <div>
+        <h1 class="text-2xl md:text-3xl font-black tracking-tight">Bảng Vàng Thi Đua</h1>
+        <p class="text-sm text-gray-500 font-medium">Lớp 12/2 · Khởi điểm 100 điểm/tổ · Cập nhật theo thời gian thực</p>
+      </div>
+    </div>
+    <div id="authGroup" class="flex flex-wrap items-center gap-2"></div>
+  </header>
+
+  <!-- lưu ý dữ liệu cục bộ -->
+  <div class="panel p-3 px-4 text-xs md:text-sm text-gray-500 flex items-center gap-2">
+    <span>ℹ️</span>
+    <span>Dữ liệu được lưu <b>trên trình duyệt của thiết bị này</b>. Nếu mở trang trên thiết bị khác, sổ điểm sẽ không tự đồng bộ — xem thêm ở cuối trang.</span>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Bảng xếp hạng -->
+    <div class="panel p-6 lg:col-span-2">
+      <h2 class="text-lg font-bold mb-5 flex items-center gap-2">📊 Bảng xếp hạng &amp; thống kê vi phạm</h2>
+      <div id="leaderboardWrap" class="space-y-3"></div>
+    </div>
+
+    <!-- Form nhập liệu Admin -->
+    <div class="panel p-6">
+      <h2 class="text-lg font-bold mb-5 flex items-center gap-2">✍️ Cập nhật điểm</h2>
+
+      <div id="guestMessage" class="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+        <p class="text-gray-500 mb-1 text-2xl">🔒</p>
+        <p class="text-sm font-medium text-gray-600">Đăng nhập tài khoản quản trị để ghi nhận điểm.</p>
+      </div>
+
+      <form id="violationForm" onsubmit="addRecord(event)" class="admin-only hidden space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">Tuần</label>
+            <input type="number" id="weekInput" value="1" min="1" required
+                   class="w-full border-2 border-gray-200 rounded-xl p-2.5 bg-gray-50 focus:border-indigo-500 outline-none font-semibold text-center" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">Tổ</label>
+            <select id="teamSelect" class="w-full border-2 border-gray-200 rounded-xl p-2.5 bg-gray-50 focus:border-indigo-500 outline-none font-semibold">
+              <option value="Tổ 1">Tổ 1</option>
+              <option value="Tổ 2">Tổ 2</option>
+              <option value="Tổ 3">Tổ 3</option>
+              <option value="Tổ 4">Tổ 4</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-2">⚡ Lỗi / điểm cộng thường gặp</label>
+          <div class="grid grid-cols-1 gap-2 text-sm">
+            <button type="button" onclick="selectPreset('vang','Vắng học không phép',3,'minus')"
+                    class="quickbtn flex justify-between items-center bg-red-50 hover:bg-red-100 text-red-700 p-2.5 rounded-xl border border-red-200 font-semibold transition">
+              <span>❌ Vắng không phép</span><span class="text-xs bg-red-200 px-2 py-0.5 rounded-md">-3</span>
+            </button>
+            <button type="button" onclick="selectPreset('tre','Đi trễ / muộn giờ',2,'minus')"
+                    class="quickbtn flex justify-between items-center bg-amber-50 hover:bg-amber-100 text-amber-800 p-2.5 rounded-xl border border-amber-200 font-semibold transition">
+              <span>⏰ Đi trễ</span><span class="text-xs bg-amber-200 px-2 py-0.5 rounded-md">-2</span>
+            </button>
+            <button type="button" onclick="selectPreset('dep','Không mang dép / giày đúng quy định',2,'minus')"
+                    class="quickbtn flex justify-between items-center bg-purple-50 hover:bg-purple-100 text-purple-800 p-2.5 rounded-xl border border-purple-200 font-semibold transition">
+              <span>👟 Không mang dép</span><span class="text-xs bg-purple-200 px-2 py-0.5 rounded-md">-2</span>
+            </button>
+            <button type="button" onclick="selectPreset('khen','Vệ sinh / nề nếp tốt',2,'plus')"
+                    class="quickbtn flex justify-between items-center bg-green-50 hover:bg-green-100 text-green-700 p-2.5 rounded-xl border border-green-200 font-semibold transition">
+              <span>✅ Khen thưởng nề nếp</span><span class="text-xs bg-green-200 px-2 py-0.5 rounded-md">+2</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-gray-100 space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">Loại</label>
+              <select id="typeSelect" onchange="handleTypeChange()" class="w-full border-2 border-gray-200 rounded-xl p-2.5 bg-gray-50 focus:border-indigo-500 outline-none font-semibold">
+                <option value="minus">➖ Trừ điểm</option>
+                <option value="plus">➕ Cộng điểm</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">Số điểm</label>
+              <input type="number" id="pointsInput" value="2" min="1" max="3" required
+                     class="w-full border-2 border-gray-200 rounded-xl p-2.5 bg-gray-50 focus:border-indigo-500 outline-none font-semibold" />
+              <p id="pointsHint" class="text-[11px] text-gray-400 mt-1">Trừ tối đa 3 điểm/lần</p>
+            </div>
+          </div>
+
+          <input type="hidden" id="categoryInput" value="khac" />
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">Lý do cụ thể</label>
+            <input type="text" id="reasonInput" required placeholder="VD: Dọn vệ sinh tốt, vi phạm nội quy..."
+                   class="w-full border-2 border-gray-200 rounded-xl p-2.5 bg-gray-50 focus:border-indigo-500 outline-none" />
+          </div>
+        </div>
+
+        <button type="submit"
+                class="w-full text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-indigo-500/30 hover:scale-[1.01] transition"
+                style="background:linear-gradient(135deg,var(--t1),#7c73f2);">
+          💾 Lưu vào sổ thi đua
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lịch sử -->
+  <div class="panel p-6">
+    <h2 class="text-lg font-bold border-b border-gray-100 pb-3 mb-4">📋 Nhật ký hoạt động</h2>
+    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-50 text-xs text-gray-500 sticky top-0">
+            <th class="p-3 font-bold">Thời gian</th>
+            <th class="p-3 font-bold">Tuần</th>
+            <th class="p-3 font-bold">Tổ</th>
+            <th class="p-3 font-bold">Lý do</th>
+            <th class="p-3 font-bold">Biến động</th>
+            <th class="p-3 font-bold admin-only hidden">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="logsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Ghi chú kỹ thuật -->
+  <div class="panel p-5 text-xs text-gray-500 leading-relaxed">
+    <b class="text-gray-600">Về việc "2 thiết bị":</b> trang này không có máy chủ, nên mỗi trình duyệt/thiết bị giữ
+    một bản dữ liệu riêng trong bộ nhớ cục bộ (localStorage). Hệ thống hiện giới hạn tối đa
+    <b>2 tài khoản quản trị được đăng ký</b> trên thiết bị này — phù hợp nếu cả lớp chỉ dùng chung 1–2 thiết bị
+    (máy của lớp trưởng/giáo viên) để chấm điểm. Nếu cần 2 người ở 2 thiết bị khác nhau cùng chỉnh sửa và
+    thấy y hệt một bảng điểm, sẽ cần thêm một máy chủ/cơ sở dữ liệu dùng chung — có thể bổ sung sau nếu bạn cần.
+  </div>
+
+  <footer class="pt-2 pb-4 text-center text-sm font-medium text-gray-500">
+    Hệ Thống Quản Lý Thi Đua • <span class="font-extrabold text-indigo-600">Credit: RODEL HAO | CLASS : 12/2</span>
+  </footer>
+</div>
+
+<script>
+/* ================= CẤU HÌNH ================= */
+const TEAM_META = {
+  "Tổ 1": { color: "#4f46e5" },
+  "Tổ 2": { color: "#0d9268" },
+  "Tổ 3": { color: "#d97706" },
+  "Tổ 4": { color: "#e11d48" },
+};
+const DEFAULT_TEAMS = Object.keys(TEAM_META);
+const INITIAL_SCORE = 100;
+const MAX_ADMIN_ACCOUNTS = 2;
+
+let logs = JSON.parse(localStorage.getItem('thidua_logs_v4')) || [];
+
+// Danh sách tài khoản quản trị (tối đa 2), giữ tài khoản mặc định admin/123 để không bị khoá lần đầu
+let adminAccounts = JSON.parse(localStorage.getItem('thidua_admin_accounts_v1'));
+if (!adminAccounts) {
+  adminAccounts = [{ username: 'admin', pass: '123' }];
+  localStorage.setItem('thidua_admin_accounts_v1', JSON.stringify(adminAccounts));
+}
+
+let currentUser = JSON.parse(sessionStorage.getItem('thidua_current_user')) || null;
+
+/* ================= GIAO DIỆN ĐĂNG NHẬP ================= */
+function checkAuthUI() {
+  const adminElements = document.querySelectorAll('.admin-only');
+  const guestMessage = document.getElementById('guestMessage');
+  const authGroup = document.getElementById('authGroup');
+
+  if (currentUser) {
+    adminElements.forEach(el => el.classList.remove('hidden'));
+    guestMessage.classList.add('hidden');
+    authGroup.innerHTML = `
+      <span class="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-200">
+        👑 ${currentUser.username}
+      </span>
+      <button onclick="handleLogout()" class="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition shadow-sm">
+        🔓 Đăng xuất
+      </button>
+      <button onclick="resetData()" class="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition shadow-sm">
+        ⚠️ Đặt lại dữ liệu
+      </button>
+    `;
+  } else {
+    adminElements.forEach(el => el.classList.add('hidden'));
+    guestMessage.classList.remove('hidden');
+    authGroup.innerHTML = `
+      <button onclick="handleLogin()" class="text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition hover:opacity-90"
+              style="background:linear-gradient(135deg,#4f46e5,#7c73f2);">
+        🔑 Đăng nhập
+      </button>
+      <button onclick="handleRegister()" class="bg-white text-indigo-600 border-2 border-indigo-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-50 transition">
+        🆕 Tạo tài khoản
+      </button>
+    `;
+  }
+  renderLogs();
+}
+
+async function handleLogin() {
+  const { value: formValues } = await Swal.fire({
+    title: 'Đăng nhập quản trị',
+    html:
+      '<input id="swal-user" class="swal2-input" placeholder="Tên tài khoản">' +
+      '<input id="swal-pass" type="password" class="swal2-input" placeholder="Mật khẩu">',
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Đăng nhập',
+    confirmButtonColor: '#4f46e5',
+    cancelButtonText: 'Hủy',
+    preConfirm: () => [
+      document.getElementById('swal-user').value.trim(),
+      document.getElementById('swal-pass').value.trim()
+    ]
+  });
+  if (!formValues) return;
+
+  const [username, password] = formValues;
+  const found = adminAccounts.find(a => a.username === username && a.pass === password);
+  if (found) {
+    currentUser = { username: found.username };
+    sessionStorage.setItem('thidua_current_user', JSON.stringify(currentUser));
+    checkAuthUI();
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đăng nhập thành công!', showConfirmButton: false, timer: 1500 });
+  } else {
+    Swal.fire({ icon: 'error', title: 'Thất bại!', text: 'Sai tên tài khoản hoặc mật khẩu.' });
+  }
+}
+
+async function handleRegister() {
+  if (adminAccounts.length >= MAX_ADMIN_ACCOUNTS) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Đã đủ tài khoản',
+      text: `Thiết bị này đã có tối đa ${MAX_ADMIN_ACCOUNTS} tài khoản quản trị. Hãy đăng nhập bằng một tài khoản đã có, hoặc nhờ quản trị viên xoá bớt tài khoản cũ.`
+    });
+    return;
+  }
+
+  const { value: formValues } = await Swal.fire({
+    title: 'Tạo tài khoản quản trị',
+    html:
+      `<p class="text-xs text-gray-500 mb-3">Còn lại ${MAX_ADMIN_ACCOUNTS - adminAccounts.length}/${MAX_ADMIN_ACCOUNTS} suất tài khoản trên thiết bị này.</p>` +
+      '<input id="swal-new-user" class="swal2-input" placeholder="Tên tài khoản mới">' +
+      '<input id="swal-new-pass" type="password" class="swal2-input" placeholder="Mật khẩu (tối thiểu 4 ký tự)">',
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Tạo tài khoản',
+    confirmButtonColor: '#4f46e5',
+    cancelButtonText: 'Hủy',
+    preConfirm: () => {
+      const u = document.getElementById('swal-new-user').value.trim();
+      const p = document.getElementById('swal-new-pass').value.trim();
+      if (!u || !p) { Swal.showValidationMessage('Vui lòng nhập đủ tên tài khoản và mật khẩu'); return false; }
+      if (p.length < 4) { Swal.showValidationMessage('Mật khẩu cần tối thiểu 4 ký tự'); return false; }
+      if (adminAccounts.some(a => a.username.toLowerCase() === u.toLowerCase())) {
+        Swal.showValidationMessage('Tên tài khoản này đã tồn tại'); return false;
+      }
+      return [u, p];
+    }
+  });
+  if (!formValues) return;
+
+  const [username, pass] = formValues;
+  adminAccounts.push({ username, pass });
+  localStorage.setItem('thidua_admin_accounts_v1', JSON.stringify(adminAccounts));
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã tạo tài khoản! Bạn có thể đăng nhập ngay.', showConfirmButton: false, timer: 2000 });
+}
+
+function handleLogout() {
+  currentUser = null;
+  sessionStorage.removeItem('thidua_current_user');
+  checkAuthUI();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã đăng xuất', showConfirmButton: false, timer: 1200 });
+}
+
+/* ================= GIỚI HẠN ĐIỂM TRỪ ================= */
+const MAX_MINUS_POINTS = 3;
+function handleTypeChange() {
+  const type = document.getElementById('typeSelect').value;
+  const pointsInput = document.getElementById('pointsInput');
+  const hint = document.getElementById('pointsHint');
+  if (type === 'minus') {
+    pointsInput.max = MAX_MINUS_POINTS;
+    if (parseInt(pointsInput.value, 10) > MAX_MINUS_POINTS) pointsInput.value = MAX_MINUS_POINTS;
+    hint.textContent = `Trừ tối đa ${MAX_MINUS_POINTS} điểm/lần`;
+    hint.classList.remove('hidden');
+  } else {
+    pointsInput.removeAttribute('max');
+    hint.classList.add('hidden');
+  }
+}
+
+/* ================= TÍCH CHỌN NHANH ================= */
+function selectPreset(category, reason, points, type) {
+  document.getElementById('typeSelect').value = type;
+  handleTypeChange();
+  document.getElementById('categoryInput').value = category;
+  document.getElementById('reasonInput').value = reason;
+  document.getElementById('pointsInput').value = points;
+  Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: `Đã chọn: ${reason}`, showConfirmButton: false, timer: 1000 });
+}
+
+/* ================= GHI NHẬN DỮ LIỆU ================= */
+function addRecord(e) {
+  e.preventDefault();
+  const type = document.getElementById('typeSelect').value;
+  const team = document.getElementById('teamSelect').value;
+  const week = parseInt(document.getElementById('weekInput').value, 10);
+  const category = document.getElementById('categoryInput').value;
+  const reason = document.getElementById('reasonInput').value.trim();
+  const points = parseInt(document.getElementById('pointsInput').value, 10);
+
+  if (!reason) { Swal.fire({ icon: 'error', title: 'Thiếu lý do', text: 'Vui lòng nhập lý do cụ thể.' }); return; }
+  if (!Number.isInteger(points) || points < 1) { Swal.fire({ icon: 'error', title: 'Số điểm không hợp lệ', text: 'Số điểm phải là số nguyên dương.' }); return; }
+  if (type === 'minus' && points > MAX_MINUS_POINTS) { Swal.fire({ icon: 'error', title: 'Vượt quá giới hạn', text: `Mỗi lần trừ điểm tối đa là ${MAX_MINUS_POINTS} điểm.` }); return; }
+  if (!Number.isInteger(week) || week < 1) { Swal.fire({ icon: 'error', title: 'Tuần không hợp lệ', text: 'Tuần phải là số nguyên dương.' }); return; }
+
+  const dateStr = new Date().toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+  logs.push({ id: Date.now(), type, team, week, category, reason, points, dateStr });
+  saveAndRender();
+
+  document.getElementById('reasonInput').value = '';
+  document.getElementById('categoryInput').value = 'khac';
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã cập nhật sổ thi đua!', showConfirmButton: false, timer: 1400 });
+}
+
+function deleteLog(id) {
+  Swal.fire({
+    title: 'Xóa ghi nhận này?',
+    text: 'Không thể hoàn tác sau khi xóa!',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonText: 'Hủy',
+    confirmButtonText: 'Xóa'
+  }).then(result => {
+    if (result.isConfirmed) {
+      logs = logs.filter(item => item.id !== id);
+      saveAndRender();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa!', showConfirmButton: false, timer: 1200 });
+    }
+  });
+}
+
+function resetData() {
+  Swal.fire({
+    title: 'Cảnh báo xóa sổ!',
+    text: 'Hành động này sẽ xóa toàn bộ điểm số của tất cả các tuần!',
+    icon: 'error',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonText: 'Hủy',
+    confirmButtonText: 'Đặt lại từ đầu'
+  }).then(result => {
+    if (result.isConfirmed) {
+      logs = [];
+      saveAndRender();
+      Swal.fire('Đã đặt lại!', 'Sổ thi đua đã được làm sạch.', 'success');
+    }
+  });
+}
+
+/* ================= HIỂN THỊ ================= */
+function saveAndRender() {
+  localStorage.setItem('thidua_logs_v4', JSON.stringify(logs));
+  renderLeaderboard();
+  renderLogs();
+}
+
+function renderLeaderboard() {
+  const stats = {};
+  DEFAULT_TEAMS.forEach(team => { stats[team] = { vang: 0, tre: 0, dep: 0, score: INITIAL_SCORE }; });
+
+  logs.forEach(log => {
+    if (!stats[log.team]) return;
+    if (log.type === 'minus') {
+      stats[log.team].score -= log.points;
+      if (log.category === 'vang') stats[log.team].vang += 1;
+      else if (log.category === 'tre') stats[log.team].tre += 1;
+      else if (log.category === 'dep') stats[log.team].dep += 1;
+    } else if (log.type === 'plus') {
+      stats[log.team].score += log.points;
+    }
+  });
+
+  const sorted = Object.keys(stats)
+    .map(team => ({ name: team, ...stats[team] }))
+    .sort((a, b) => b.score - a.score);
+
+  const medal = ['🥇', '🥈', '🥉'];
+  document.getElementById('leaderboardWrap').innerHTML = sorted.map((team, i) => {
+    const color = TEAM_META[team.name].color;
+    const scoreColor = team.score >= 100 ? '#4f46e5' : (team.score >= 80 ? '#d97706' : '#e11d48');
+    return `
+      <div class="team-row rounded-xl bg-gray-50/60 p-4 flex items-center justify-between gap-4" style="--row-color:${color};">
+        <div class="flex items-center gap-4 min-w-0">
+          <div class="w-9 text-center font-black text-lg text-gray-400">${medal[i] || '#' + (i + 1)}</div>
+          <div class="min-w-0">
+            <div class="font-black text-base md:text-lg truncate">${team.name}</div>
+            <div class="flex gap-3 text-xs text-gray-500 mt-0.5">
+              <span>Vắng <b class="text-gray-700">${team.vang}</b></span>
+              <span>Trễ <b class="text-gray-700">${team.tre}</b></span>
+              <span>Không dép <b class="text-gray-700">${team.dep}</b></span>
+            </div>
+          </div>
+        </div>
+        <div class="font-black text-2xl md:text-3xl score-pop" style="color:${scoreColor};">${team.score}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderLogs() {
+  const tbody = document.getElementById('logsBody');
+  if (logs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-400 italic">Chưa có ghi nhận nào trong sổ.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = [...logs].reverse().map(log => {
+    const isMinus = log.type === 'minus';
+    const pointClass = isMinus ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50';
+    const prefix = isMinus ? '-' : '+';
+    return `
+      <tr class="border-b border-gray-100 hover:bg-indigo-50/40 transition text-sm">
+        <td class="p-3 text-gray-500 text-xs">${log.dateStr || 'N/A'}</td>
+        <td class="p-3 font-semibold text-indigo-800">Tuần ${log.week}</td>
+        <td class="p-3 font-bold" style="color:${TEAM_META[log.team]?.color || '#374151'}">${log.team}</td>
+        <td class="p-3 text-gray-600">${log.reason}</td>
+        <td class="p-3 font-bold"><span class="${pointClass} px-2 py-1 rounded-md">${prefix}${log.points}</span></td>
+        <td class="p-3 admin-only hidden">
+          <button onclick="deleteLog(${log.id})" class="text-red-500 hover:text-white hover:bg-red-500 p-1.5 rounded-lg transition" title="Xóa">🗑️</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// Khởi chạy
+saveAndRender();
+checkAuthUI();
+handleTypeChange();
+</script>
+</body>
+</html>
